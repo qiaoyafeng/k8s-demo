@@ -1,0 +1,18 @@
+{{/* Service：模板化的 K8s Service（对应 k8s/base/service.yaml） */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "k8s-demo.fullname" . }}
+  labels:
+    {{- include "k8s-demo.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "k8s-demo.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+      {{- if and (eq .Values.service.type "NodePort") .Values.service.nodePort }}
+      nodePort: {{ .Values.service.nodePort }}
+      {{- end }}

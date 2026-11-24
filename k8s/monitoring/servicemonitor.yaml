@@ -1,0 +1,44 @@
+# ============================================================
+# ServiceMonitor：声明 Prometheus 如何抓取本应用的 /metrics
+#
+# 前置条件：集群已安装 Prometheus Operator
+# （推荐 kube-prometheus-stack）：
+#   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#   helm install prometheus prometheus-community/kube-prometheus-stack \
+#     -n monitoring --create-namespace
+#
+# 部署（ServiceMonitor 属于 monitoring namespace，由 Prometheus 拾取）：
+#   kubectl apply -f k8s/monitoring/servicemonitor.yaml
+#
+# 教学要点：
+# - ServiceMonitor 是声明式"抓取配置"：新增应用时不必改 Prometheus 配置，
+#   只需部署对应 ServiceMonitor（CRD 机制，K8s 扩展能力的典型示范）；
+# - label release: prometheus 与 kube-prometheus-stack 默认的
+#   serviceMonitorSelector 匹配，缺了这个标签将不会被拾取；
+# - namespaceSelector 一次覆盖 dev/test/prod 三个环境，
+#   每个环境的 Pod 会带上各自的 namespace 标签进入 Prometheus，
+#   多环境监控靠 namespace 标签天然区分。
+# ============================================================
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: k8s-demo
+  namespace: monitoring
+  labels:
+    # 必须与 kube-prometheus-stack 的 serviceMonitorSelector 匹配
+    release: prometheus
+spec:
+  # 抓取范围：本应用的全部三个环境 namespace
+  namespaceSelector:
+    matchNames:
+      - k8s-demo-dev
+      - k8s-demo-test
+      - k8s-demo-prod
+  # 按标签选中各环境里的 k8s-demo Service
+  selector:
+    matchLabels:
+      app: k8s-demo
+  endpoints:
+    - port: http          # Service 端口名（见 k8s/base/service.yaml）
+      path: /metrics      # 应用暴露指标的路由
+      interval: 30s       # 抓取频率

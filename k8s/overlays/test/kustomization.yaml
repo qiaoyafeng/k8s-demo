@@ -1,0 +1,24 @@
+# test 环境 overlay
+#
+# 部署：kubectl apply -k k8s/overlays/test
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: k8s-demo-test
+
+resources:
+  - ../../base
+
+# 测试环境 2 个副本：可同时验证负载均衡与滚动更新
+replicas:
+  - name: k8s-demo
+    count: 2
+
+images:
+  - name: k8s-demo
+    newTag: "latest"
+
+patches:
+  - path: configmap-patch.yaml
+  # 测试环境设置适度资源上限，防止压垮共享集群
+  - path: resources-patch.yaml

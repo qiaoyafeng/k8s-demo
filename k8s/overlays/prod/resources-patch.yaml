@@ -1,0 +1,17 @@
+# 生产环境：requests 与 limits 齐全
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-demo
+spec:
+  template:
+    spec:
+      containers:
+        - name: k8s-demo
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi

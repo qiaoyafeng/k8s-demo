@@ -1,0 +1,40 @@
+========================================
+k8s-demo 部署成功！
+========================================
+
+Release   : {{ .Release.Name }}
+Namespace : {{ .Release.Namespace }}
+环境      : {{ .Values.appEnv }}
+副本数    : {{ .Values.replicaCount }}
+镜像      : {{ .Values.image.repository }}:{{ .Values.image.tag }}
+Service   : {{ .Values.service.type }}{{ if and (eq .Values.service.type "NodePort") .Values.service.nodePort }} (nodePort: {{ .Values.service.nodePort }}){{ end }}
+
+{{- if not .Values.llm.apiKey }}
+
+⚠  LLM_API_KEY 尚未配置！
+   LLM 对话接口将返回 502，节点信息接口不受影响。
+   立即补配（升级 Release 注入密钥，密钥不进文件不落盘）：
+     helm upgrade {{ .Release.Name }} ./helm/k8s-demo \
+       -n {{ .Release.Namespace }} \
+       --reuse-values --set llm.apiKey=sk-xxx
+{{- end }}
+
+访问方式：
+  # 本地调试（端口转发，无需暴露 Service）
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "k8s-demo.fullname" . }} 8000:8000
+  # 然后访问
+  curl http://localhost:8000/healthz
+  curl http://localhost:8000/api/node/name
+
+{{- if eq .Values.service.type "NodePort" }}
+  # NodePort 直连（任意节点 IP + 端口）
+  curl http://<任意节点IP>:{{ .Values.service.nodePort }}/healthz
+{{- end }}
+
+验证负载均衡：反复请求 /api/node/name，观察 pod_name 变化。
+验证环境隔离：/healthz 返回的 app_env 应为 {{ .Values.appEnv }}。
+查看其他命令：
+  helm list -n {{ .Release.Namespace }}
+  helm upgrade {{ .Release.Name }} ...   # 升级
+  helm rollback {{ .Release.Name }} 1    # 回滚
+  helm uninstall {{ .Release.Name }} -n {{ .Release.Namespace }}

@@ -1,0 +1,19 @@
+# 测试环境：给容器设置适度的资源上限
+# 教学要点：requests 用于调度决策（保证最低资源），
+# limits 是硬上限（超出会被限流 / OOMKilled）。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-demo
+spec:
+  template:
+    spec:
+      containers:
+        - name: k8s-demo
+          resources:
+            requests:
+              cpu: 100m
+              memory: 96Mi
+            limits:
+              cpu: 300m
+              memory: 192Mi

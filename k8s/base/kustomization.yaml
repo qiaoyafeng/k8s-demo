@@ -1,0 +1,10 @@
+# kustomize base：各环境（dev/test/prod）共用的公共清单。
+# 部署时不要直接用本目录，而是用 overlays 下的环境目录：
+#   kubectl apply -k k8s/overlays/dev
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - configmap.yaml
+  - deployment.yaml
+  - service.yaml

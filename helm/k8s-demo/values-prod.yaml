@@ -1,0 +1,25 @@
+# prod 环境覆盖：3 副本、固定版本、完整资源配额、NodePort 暴露
+# 用法：
+#   helm install k8s-demo-prod ./helm/k8s-demo \
+#     -n k8s-demo-prod --create-namespace \
+#     -f helm/k8s-demo/values-prod.yaml \
+#     --set llm.apiKey=sk-xxx
+appEnv: prod
+replicaCount: 3
+
+image:
+  # 生产锁定具体版本号（对应 Chart.yaml 的 appVersion）
+  tag: "1.0.0"
+
+service:
+  # NodePort 便于教学演示对外访问；云环境可改为 LoadBalancer
+  type: NodePort
+  nodePort: 30080
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi

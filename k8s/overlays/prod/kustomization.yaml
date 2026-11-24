@@ -1,0 +1,27 @@
+# prod 环境 overlay：生产环境差异
+#
+# 部署：kubectl apply -k k8s/overlays/prod
+# 与 dev/test 的差异：3 副本、固定版本镜像 tag、完整资源配额、NodePort 暴露
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: k8s-demo-prod
+
+resources:
+  - ../../base
+
+replicas:
+  - name: k8s-demo
+    count: 3
+
+# 生产环境锁定具体版本号（可复现 + 便于回滚），不用 latest
+images:
+  - name: k8s-demo
+    newTag: "1.0.0"
+
+patches:
+  - path: configmap-patch.yaml
+  # 生产：requests + limits 齐全，保障服务质量与集群稳定
+  - path: resources-patch.yaml
+  # 生产：ClusterIP -> NodePort（教学演示对外暴露；云环境可改 LoadBalancer）
+  - path: service-patch.yaml

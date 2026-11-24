@@ -1,0 +1,79 @@
+# ============================================================
+# PrometheusRule：告警规则（Alertmanager 负责通知）
+#
+# 部署：
+#   kubectl apply -f k8s/monitoring/prometheusrule.yaml
+# 查看已触发的告警：
+#   kubectl -n monitoring port-forward svc/prometheus-kube-prometheus-alertmanager 9093:9093
+#   浏览器访问 http://localhost:9093（或经 Grafana -> Alerting 查看）
+#
+# 教学要点：
+# - expr 是 PromQL 表达式；for 是持续时长（避免瞬时抖动误报）；
+# - labels.severity 用于 Alertmanager 路由分级（critical 立即通知，
+#   warning 汇总通知）；
+# - annotations 里的 summary/description 是通知内容模板，
+#   $labels.* 引用告警样本的标签值。
+# ============================================================
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: k8s-demo-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+spec:
+  groups:
+    - name: k8s-demo
+      rules:
+        # ---- 规则 1：应用不可用（任一环境）----
+        - alert: K8sDemoDown
+          expr: up{service="k8s-demo"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "k8s-demo 应用不可用（namespace={{ $labels.namespace }}）"
+            description: "Prometheus 已超过 2 分钟无法抓取 {{ $labels.namespace }} 的 /metrics，请检查 Pod 状态与探针日志。"
+
+        # ---- 规则 2：LLM 对话错误率过高（上游故障先兆）----
+        # 非成功调用 / 总调用 > 30%，持续 5 分钟
+        - alert: K8sDemoLLMErrorRateHigh
+          expr: |
+            sum by (namespace) (rate(llm_chat_requests_total{status!="success"}[5m]))
+              /
+            clamp_min(sum by (namespace) (rate(llm_chat_requests_total[5m])), 1e-6)
+            > 0.3
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "LLM 对话接口错误率超过 30%（namespace={{ $labels.namespace }}）"
+            description: "可能原因：LLM_API_KEY 未配置/失效（not_configured）或上游 LLM 服务异常（upstream_error）。查看应用日志确认具体 status 分布。"
+
+        # ---- 规则 3：Pod 频繁重启（探针失败或 OOM 迹象）----
+        - alert: K8sDemoPodRestarting
+          expr: |
+            rate(kube_pod_container_status_restarts_total{
+              namespace=~"k8s-demo-.*", container!=""
+            }[15m]) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "k8s-demo Pod 频繁重启（{{ $labels.pod }}）"
+            description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} 在 15 分钟内发生重启，常见原因：liveness 探针失败、OOMKilled、镜像拉取失败。用 kubectl describe pod 查看事件。"
+
+        # ---- 规则 4：副本数低于期望（漂移或被驱逐）----
+        - alert: K8sDemoReplicasMismatch
+          expr: |
+            kube_deployment_spec_replicas{
+              namespace=~"k8s-demo-.*", deployment=~"k8s-demo.*"
+            } != kube_deployment_status_replicas_available{
+              namespace=~"k8s-demo-.*", deployment=~"k8s-demo.*"
+            }
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "k8s-demo 可用副本数低于期望（{{ $labels.namespace }}）"
+            description: "期望 {{ $value }} 个副本，实际可用副本不足。可能是节点资源不足导致 Pod 无法调度或就绪探针持续失败。"

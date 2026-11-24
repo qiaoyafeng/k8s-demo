@@ -1,0 +1,71 @@
+# ============================================================
+# Deployment：声明式管理 Pod 副本（核心教学资源）
+#
+# 重点 1：downward API —— 把 Pod 自身信息注入环境变量
+#   POD_NAME  (metadata.name)：Pod 名（接口 /api/node/name 的 pod_name）
+#   NODE_NAME (spec.nodeName)：调度到的节点（接口 /api/node/name 的 node_name）
+#   这就是"应用如何知道自己在哪个节点"的标准答案。
+#
+# 重点 2：配置注入 —— envFrom 引用 ConfigMap 与 Secret
+#   ConfigMap 提供非敏感配置；Secret 提供 LLM_API_KEY。
+#   Secret 不随本仓库分发，需用 kubectl create secret 手动创建
+#   （详见 README「敏感信息规范」）。
+#
+# 重点 3：探针 —— liveness/readiness 都指向 /healthz
+#   readiness 失败：Pod 摘除流量（不接收请求，但不重启）
+#   liveness  失败：Pod 被杀掉重建
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-demo
+  labels:
+    app: k8s-demo
+spec:
+  # 副本数：base 默认 1；overlays 里 dev=1 / test=2 / prod=3
+  replicas: 1
+  selector:
+    matchLabels:
+      app: k8s-demo
+  template:
+    metadata:
+      labels:
+        app: k8s-demo
+    spec:
+      containers:
+        - name: k8s-demo
+          # 镜像 tag 由 overlay 的 images 字段覆盖（prod 用具体版本号）
+          image: k8s-demo:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          # ---- downward API：Pod 元数据 -> 环境变量 ----
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          # ---- 配置注入：ConfigMap（非敏感）+ Secret（敏感）----
+          envFrom:
+            - configMapRef:
+                name: k8s-demo-config
+            - secretRef:
+                name: k8s-demo-secret
+          # ---- 探针 ----
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10

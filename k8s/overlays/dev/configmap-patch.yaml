@@ -1,0 +1,7 @@
+# 覆盖 base ConfigMap 中与环境相关的字段
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k8s-demo-config
+data:
+  APP_ENV: "dev"

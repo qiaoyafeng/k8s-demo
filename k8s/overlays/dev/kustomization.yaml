@@ -1,0 +1,26 @@
+# dev 环境 overlay：叠加在 base 之上的环境差异
+#
+# 部署：kubectl apply -k k8s/overlays/dev
+# 渲染预览（不下发）：kubectl kustomize k8s/overlays/dev
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# 所有资源自动落入 dev 专用 namespace（资源隔离的边界）
+namespace: k8s-demo-dev
+
+resources:
+  - ../../base
+
+# 副本数：dev 只需 1 个副本，节省资源
+replicas:
+  - name: k8s-demo
+    count: 1
+
+# 镜像：dev 直接用本地 latest（配合 kind/minikube 的本地镜像）
+images:
+  - name: k8s-demo
+    newTag: "latest"
+
+patches:
+  # APP_ENV 等环境相关配置由 patch 注入 ConfigMap
+  - path: configmap-patch.yaml

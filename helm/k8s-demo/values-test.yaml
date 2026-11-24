@@ -1,0 +1,19 @@
+# test 环境覆盖：2 副本 + 适度资源限制
+# 用法：
+#   helm install k8s-demo-test ./helm/k8s-demo \
+#     -n k8s-demo-test --create-namespace \
+#     -f helm/k8s-demo/values-test.yaml \
+#     --set llm.apiKey=sk-xxx
+appEnv: test
+replicaCount: 2
+
+image:
+  tag: "latest"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 96Mi
+  limits:
+    cpu: 300m
+    memory: 192Mi

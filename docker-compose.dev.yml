@@ -1,0 +1,21 @@
+# ============================================================
+# 开发环境 override：在基础文件之上叠加开发特性
+#
+# 用法（两个 -f 按顺序合并，后者覆盖前者）：
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#
+# 与 test/prod 的差异：
+# - 挂载本地源码，改代码即时生效（热重载，无需重新构建镜像）；
+# - uvicorn --reload 监听文件变化自动重启；
+# - 强制 APP_ENV=dev（DEBUG 日志）。
+# ============================================================
+
+services:
+  k8s-demo:
+    # 开发模式：容器内代码实时映射宿主机源码
+    volumes:
+      - ./app:/app/app
+    environment:
+      APP_ENV: dev
+    # 热重载：容器内修改 app/ 下文件即自动重启服务
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload

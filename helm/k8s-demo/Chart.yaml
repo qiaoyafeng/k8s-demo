@@ -1,0 +1,8 @@
+apiVersion: v2
+name: k8s-demo
+description: FastAPI 教学示例 Chart：Kubernetes 与 Helm 学习项目（节点信息 + OpenAI 兼容 LLM 对话接口）
+type: application
+# Chart 自身版本（模板/结构变化时递增）
+version: 0.1.0
+# 被部署应用的版本（对应镜像 tag）
+appVersion: "1.0.0"

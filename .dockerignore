@@ -1,0 +1,12 @@
+# Docker 构建上下文排除项：镜像里只需要 pyproject.toml / uv.lock / app
+.git
+.venv
+.env
+__pycache__
+*.pyc
+.pytest_cache
+tests
+k8s
+helm
+docker-compose*.yml
+README.md

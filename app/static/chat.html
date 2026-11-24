@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>k8s-demo · LLM 对话测试台</title>
+<style>
+  :root {
+    --bg: #0f1420;
+    --panel: #171e2e;
+    --panel-2: #1d2638;
+    --border: #2a3550;
+    --text: #e8ecf4;
+    --text-dim: #8b96ad;
+    --accent: #4f8cff;
+    --accent-soft: rgba(79, 140, 255, .14);
+    --user-bubble: #2c5fd9;
+    --assistant-bubble: #232c40;
+    --error: #ff6b6b;
+    --ok: #4ade80;
+    --radius: 14px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: radial-gradient(1200px 600px at 70% -10%, #1b2a4a 0%, var(--bg) 55%);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  header {
+    width: 100%; max-width: 860px;
+    padding: 18px 20px 10px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  header .brand { font-size: 17px; font-weight: 600; letter-spacing: .3px; }
+  header .brand span { color: var(--accent); }
+  header .env-badge {
+    font-size: 12px; color: var(--text-dim);
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 4px 12px; background: var(--panel);
+  }
+  .chat-wrap {
+    width: 100%; max-width: 860px; flex: 1; min-height: 0;
+    display: flex; flex-direction: column;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: 0 18px 50px rgba(0,0,0,.35);
+  }
+  #messages {
+    flex: 1; overflow-y: auto;
+    padding: 22px 22px 10px;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .msg { display: flex; flex-direction: column; max-width: 82%; animation: pop .18s ease-out; }
+  @keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .msg.user { align-self: flex-end; align-items: flex-end; }
+  .msg.assistant { align-self: flex-start; align-items: flex-start; }
+  .bubble {
+    padding: 11px 15px; border-radius: var(--radius);
+    font-size: 14.5px; line-height: 1.65; white-space: pre-wrap; word-break: break-word;
+  }
+  .msg.user .bubble { background: var(--user-bubble); border-bottom-right-radius: 4px; }
+  .msg.assistant .bubble { background: var(--assistant-bubble); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .msg .meta { font-size: 11px; color: var(--text-dim); margin-top: 5px; padding: 0 3px; }
+  .msg.error .bubble { background: rgba(255, 107, 107, .1); border: 1px solid var(--error); color: #ffd0d0; }
+  .cursor { display: inline-block; width: 8px; height: 15px; background: var(--accent); vertical-align: -2px; margin-left: 2px; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .input-bar {
+    border-top: 1px solid var(--border);
+    background: var(--panel-2);
+    padding: 12px 16px 14px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .options { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  .options label { font-size: 12.5px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+  .options input[type=text] {
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 10px; font-size: 12.5px; width: 170px; outline: none;
+  }
+  .options input[type=text]:focus { border-color: var(--accent); }
+  .options input[type=checkbox] { accent-color: var(--accent); width: 14px; height: 14px; }
+  .row { display: flex; gap: 10px; }
+  textarea {
+    flex: 1; resize: none; height: 46px;
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 11px 13px; font-size: 14px; font-family: inherit;
+    outline: none; line-height: 1.5;
+  }
+  textarea:focus { border-color: var(--accent); }
+  button#send {
+    background: var(--accent); color: #fff; border: none;
+    border-radius: 10px; padding: 0 22px; font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: opacity .15s, transform .05s;
+  }
+  button#send:hover { opacity: .88; }
+  button#send:active { transform: scale(.97); }
+  button#send:disabled { opacity: .45; cursor: not-allowed; }
+  .hint { font-size: 11.5px; color: var(--text-dim); padding: 0 3px; }
+  @media (max-width: 640px) {
+    header { padding: 14px 14px 8px; }
+    .msg { max-width: 92%; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">k8s-demo <span>·</span> LLM 对话测试台</div>
+  <div class="env-badge" id="envBadge">检测中…</div>
+</header>
+
+<div class="chat-wrap">
+  <div id="messages"></div>
+  <div class="input-bar">
+    <div class="options">
+      <label>模型
+        <input type="text" id="model" placeholder="留空 = 使用环境变量 LLM_MODEL" title="留空使用 LLM_MODEL 环境变量指定的默认模型">
+      </label>
+      <label><input type="checkbox" id="stream"> 流式输出（SSE）</label>
+      <span class="hint">Enter 发送 · Shift+Enter 换行</span>
+    </div>
+    <div class="row">
+      <textarea id="input" placeholder="输入消息，例如：用一句话介绍 Kubernetes…"></textarea>
+      <button id="send">发送</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// LLM 对话测试台：直接调用本服务 /api/llm/chat
+// - 非流式：fetch JSON
+// - 流式：fetch + 手动解析 SSE（text/event-stream）逐字渲染
+// 页面维护完整 messages 历史，支持多轮对话。
+// ============================================================
+
+const messagesEl = document.getElementById('messages');
+const inputEl = document.getElementById('input');
+const sendBtn = document.getElementById('send');
+const modelEl = document.getElementById('model');
+const streamEl = document.getElementById('stream');
+const envBadge = document.getElementById('envBadge');
+
+// 多轮对话历史（OpenAI 协议格式）
+const history = [];
+let busy = false;
+
+// 启动时读取 /healthz，把 app_env 展示在页面右上角（对照部署环境）
+(async function loadEnv() {
+  try {
+    const resp = await fetch('/healthz');
+    const data = await resp.json();
+    envBadge.textContent = '环境: ' + data.app_env;
+  } catch {
+    envBadge.textContent = '环境: 未知';
+  }
+})();
+
+function addMessage(role, text) {
+  const wrap = document.createElement('div');
+  wrap.className = 'msg ' + (role === 'user' ? 'user' : 'assistant');
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.textContent = text;
+  wrap.appendChild(bubble);
+  messagesEl.appendChild(wrap);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  return { wrap, bubble };
+}
+
+function addMeta(wrap, text) {
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  meta.textContent = text;
+  wrap.appendChild(meta);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function showError(detail) {
+  const { wrap } = addMessage('assistant', detail || '调用失败');
+  wrap.classList.add('error');
+  addMeta(wrap, '错误（详见上方提示）');
+}
+
+async function send() {
+  const text = inputEl.value.trim();
+  if (!text || busy) return;
+  busy = true;
+  sendBtn.disabled = true;
+  inputEl.value = '';
+  inputEl.style.height = '46px';
+
+  // 追加用户消息并写入历史
+  addMessage('user', text);
+  history.push({ role: 'user', content: text });
+
+  const model = modelEl.value.trim() || undefined;
+  const useStream = streamEl.checked;
+  const started = performance.now();
+
+  if (useStream) {
+    await sendStream(model, started);
+  } else {
+    await sendPlain(model, started);
+  }
+
+  busy = false;
+  sendBtn.disabled = false;
+  inputEl.focus();
+}
+
+// 非流式：一次拿到完整回复
+async function sendPlain(model, started) {
+  try {
+    const resp = await fetch('/api/llm/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: history, model, stream: false }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.detail || 'HTTP ' + resp.status);
+
+    const { wrap, bubble } = addMessage('assistant', '');
+    bubble.textContent = data.reply;
+    history.push({ role: 'assistant', content: data.reply });
+    addMeta(wrap, `模型: ${data.model} · 耗时: ${data.elapsed_seconds}s`);
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+// 流式：解析 SSE 增量，逐字渲染并显示光标
+async function sendStream(model, started) {
+  const { wrap, bubble } = addMessage('assistant', '');
+  const cursor = document.createElement('span');
+  cursor.className = 'cursor';
+  bubble.appendChild(cursor);
+
+  let full = '';
+  let ok = false;
+  try {
+    const resp = await fetch('/api/llm/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: history, model, stream: true }),
+    });
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      throw new Error(data.detail || 'HTTP ' + resp.status);
+    }
+    ok = true;
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      // SSE 事件按空行分隔，逐条解析
+      let idx;
+      while ((idx = buffer.indexOf('\n\n')) >= 0) {
+        const eventBlock = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+        for (const line of eventBlock.split('\n')) {
+          if (!line.startsWith('data: ')) continue;
+          const payload = line.slice(6);
+          if (payload === '[DONE]') continue;
+          try {
+            const obj = JSON.parse(payload);
+            if (obj.error) throw new Error(obj.error);
+            if (obj.delta) {
+              full += obj.delta;
+              bubble.textContent = full;   // 逐字更新
+              bubble.appendChild(cursor);  // 光标保持在文末
+              messagesEl.scrollTop = messagesEl.scrollHeight;
+            }
+          } catch (err) {
+            throw err;
+          }
+        }
+      }
+    }
+    history.push({ role: 'assistant', content: full });
+    addMeta(wrap, `模型: ${model || '默认(LLM_MODEL)'} · 耗时: ${((performance.now() - started) / 1000).toFixed(2)}s`);
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    cursor.remove();
+    if (!ok) wrap.remove();
+  }
+}
+
+// 键盘交互：Enter 发送，Shift+Enter 换行
+inputEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    send();
+  }
+});
+sendBtn.addEventListener('click', send);
+</script>
+</body>
+</html>

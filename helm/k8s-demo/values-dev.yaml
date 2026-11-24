@@ -1,0 +1,11 @@
+# dev 环境覆盖：只写与默认 values.yaml 的差异
+# 用法：
+#   helm install k8s-demo-dev ./helm/k8s-demo \
+#     -n k8s-demo-dev --create-namespace \
+#     -f helm/k8s-demo/values-dev.yaml \
+#     --set llm.apiKey=sk-xxx
+appEnv: dev
+replicaCount: 1
+
+image:
+  tag: "latest"

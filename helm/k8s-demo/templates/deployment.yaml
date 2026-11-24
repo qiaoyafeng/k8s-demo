@@ -1,0 +1,61 @@
+{{/* Deployment：模板化的 K8s Deployment（对应 k8s/base/deployment.yaml） */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "k8s-demo.fullname" . }}
+  labels:
+    {{- include "k8s-demo.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "k8s-demo.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "k8s-demo.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ include "k8s-demo.fullname" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+          # downward API：把 Pod 名 / 节点名注入环境变量
+          # （对应 /api/node/name 接口的数据来源）
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          # 配置注入：ConfigMap（非敏感）+ Secret（LLM_API_KEY）
+          envFrom:
+            - configMapRef:
+                name: {{ include "k8s-demo.fullname" . }}-config
+            - secretRef:
+                name: {{ include "k8s-demo.fullname" . }}-secret
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}

@@ -1,0 +1,56 @@
+# ============================================================
+# Chart 默认 values：所有可配置项的兜底值
+#
+# 多环境使用方式（values 合并优先级从高到低）：
+#   helm install k8s-demo-prod ./helm/k8s-demo \
+#     -n k8s-demo-prod \
+#     -f helm/k8s-demo/values-prod.yaml \
+#     --set llm.apiKey=sk-xxx        # 优先级最高
+# 即：--set > -f 文件 > 本文件默认值
+# ============================================================
+
+# 副本数：dev=1 / test=2 / prod=3（见对应 values-<env>.yaml）
+replicaCount: 1
+
+image:
+  # 本地学习可直接用 k8s-demo:latest（配合 kind/minikube）；
+  # 正式环境换成镜像仓库地址，如 registry.example.com/k8s-demo
+  repository: k8s-demo
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+# 私有镜像仓库的拉取凭据（可选）
+imagePullSecrets: []
+# 资源名称覆盖（一般不用改）
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  # ClusterIP（集群内）/ NodePort（节点端口）/ LoadBalancer（云负载均衡）
+  type: ClusterIP
+  port: 8000
+  # type=NodePort 时生效；留空由集群自动分配
+  nodePort: null
+
+# 容器资源配额；默认留空，生产环境务必在 values-prod.yaml 中配置
+resources: {}
+
+# 应用环境标识：dev / test / prod（影响日志级别，/healthz 会返回此值）
+appEnv: dev
+
+# 时区
+timezone: Asia/Shanghai
+
+# ---- LLM 配置（OpenAI 兼容协议）----
+llm:
+  # Base URL 示例：
+  #   OpenAI   : https://api.openai.com/v1
+  #   DeepSeek : https://api.deepseek.com/v1
+  #   Ollama   : http://<ollama-host>:11434/v1
+  baseUrl: "https://api.openai.com/v1"
+  model: "gpt-4o-mini"
+  timeout: "60"
+  # 敏感信息！默认空串。
+  # 勿在此处或任何 values 文件里提交明文 Key，
+  # 安装时通过 --set llm.apiKey=sk-xxx 注入（不落盘）。
+  apiKey: ""
